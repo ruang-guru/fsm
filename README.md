@@ -3,7 +3,7 @@
 [![Coverage Status](https://img.shields.io/coveralls/looplab/fsm.svg)](https://coveralls.io/r/looplab/fsm)
 [![Go Report Card](https://goreportcard.com/badge/looplab/fsm)](https://goreportcard.com/report/looplab/fsm)
 
-# FSM for Go
+# FSM for Go 
 
 FSM is a finite state machine for Go.
 
