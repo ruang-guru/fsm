@@ -42,7 +42,7 @@ type FSM struct {
 	current string
 
 	// transitions maps events and source states to destination states.
-	transitions map[EventKey]string
+	transitions map[eKey]string
 
 	// callbacks maps events and targets to callback functions.
 	callbacks map[cKey]Callback
@@ -52,8 +52,6 @@ type FSM struct {
 	transition func()
 	// transitionerObj calls the FSM's transition() function.
 	transitionerObj transitioner
-
-	TransitionsMap map[string]string
 
 	// stateMu guards access to the current state.
 	stateMu sync.RWMutex
@@ -82,8 +80,6 @@ type EventDesc struct {
 	// Dst is the destination state that the FSM will be in if the transition
 	// succeds.
 	Dst string
-
-	Msg string
 }
 
 // Callback is a function type that callbacks should use. Event is the current
@@ -132,7 +128,7 @@ type Callbacks map[string]Callback
 // which version of the callback will end up in the internal map. This is due
 // to the psuedo random nature of Go maps. No checking for multiple keys is
 // currently performed.
-func NewFSM(initial string, events []*EventDesc, callbacks map[string]Callback) *FSM {
+func NewFSM(initial string, events []EventDesc, callbacks map[string]Callback) *FSM {
 	f := &FSM{
 		transitionerObj: &transitionerStruct{},
 		current:         initial,
@@ -146,8 +142,7 @@ func NewFSM(initial string, events []*EventDesc, callbacks map[string]Callback) 
 	allStates := make(map[string]bool)
 	for _, e := range events {
 		for _, src := range e.Src {
-			f.transitions[EventKey{e.Name, src}] = e.Dst
-			f.message[EventKey{e.Name, src}] = e.Msg
+			f.transitions[eKey{e.Name, src}] = e.Dst
 			allStates[src] = true
 			allStates[e.Dst] = true
 		}
@@ -202,27 +197,11 @@ func NewFSM(initial string, events []*EventDesc, callbacks map[string]Callback) 
 		}
 
 		if callbackType != callbackNone {
-			f.callbacks[CallbackKey{target, callbackType}] = fn
+			f.callbacks[cKey{target, callbackType}] = fn
 		}
 	}
 
 	return f
-}
-
-func (f *FSM) CanMove(event string, src string) bool {
-	f.stateMu.RLock()
-	defer f.stateMu.RUnlock()
-	_, ok := f.transitions[EventKey{event, src}]
-	return ok && (f.transition == nil)
-}
-
-func (f *FSM) GetDestinationState(lastState string, command string) (string, bool) {
-	dst, ok := f.transitions[EventKey{command, lastState}]
-	return dst, ok
-}
-
-func (f *FSM) GetMessage(event string, src string) string {
-	return f.message[EventKey{event, src}]
 }
 
 // Current returns the current state of the FSM.
@@ -252,7 +231,7 @@ func (f *FSM) SetState(state string) {
 func (f *FSM) Can(event string) bool {
 	f.stateMu.RLock()
 	defer f.stateMu.RUnlock()
-	_, ok := f.transitions[EventKey{event, f.current}]
+	_, ok := f.transitions[eKey{event, f.current}]
 	return ok && (f.transition == nil)
 }
 
@@ -319,7 +298,7 @@ func (f *FSM) Event(event string, args ...interface{}) error {
 		return InTransitionError{event}
 	}
 
-	dst, ok := f.transitions[EventKey{event, f.current}]
+	dst, ok := f.transitions[eKey{event, f.current}]
 	if !ok {
 		for ekey := range f.transitions {
 			if ekey.event == event {
@@ -401,13 +380,13 @@ func (t transitionerStruct) transition(f *FSM) error {
 // beforeEventCallbacks calls the before_ callbacks, first the named then the
 // general version.
 func (f *FSM) beforeEventCallbacks(e *Event) error {
-	if fn, ok := f.callbacks[CallbackKey{e.Event, callbackBeforeEvent}]; ok {
+	if fn, ok := f.callbacks[cKey{e.Event, callbackBeforeEvent}]; ok {
 		fn(e)
 		if e.canceled {
 			return CanceledError{e.Err}
 		}
 	}
-	if fn, ok := f.callbacks[CallbackKey{"", callbackBeforeEvent}]; ok {
+	if fn, ok := f.callbacks[cKey{"", callbackBeforeEvent}]; ok {
 		fn(e)
 		if e.canceled {
 			return CanceledError{e.Err}
@@ -419,7 +398,7 @@ func (f *FSM) beforeEventCallbacks(e *Event) error {
 // leaveStateCallbacks calls the leave_ callbacks, first the named then the
 // general version.
 func (f *FSM) leaveStateCallbacks(e *Event) error {
-	if fn, ok := f.callbacks[CallbackKey{f.current, callbackLeaveState}]; ok {
+	if fn, ok := f.callbacks[cKey{f.current, callbackLeaveState}]; ok {
 		fn(e)
 		if e.canceled {
 			return CanceledError{e.Err}
@@ -427,7 +406,7 @@ func (f *FSM) leaveStateCallbacks(e *Event) error {
 			return AsyncError{e.Err}
 		}
 	}
-	if fn, ok := f.callbacks[CallbackKey{"", callbackLeaveState}]; ok {
+	if fn, ok := f.callbacks[cKey{"", callbackLeaveState}]; ok {
 		fn(e)
 		if e.canceled {
 			return CanceledError{e.Err}
@@ -441,10 +420,10 @@ func (f *FSM) leaveStateCallbacks(e *Event) error {
 // enterStateCallbacks calls the enter_ callbacks, first the named then the
 // general version.
 func (f *FSM) enterStateCallbacks(e *Event) {
-	if fn, ok := f.callbacks[CallbackKey{f.current, callbackEnterState}]; ok {
+	if fn, ok := f.callbacks[cKey{f.current, callbackEnterState}]; ok {
 		fn(e)
 	}
-	if fn, ok := f.callbacks[CallbackKey{"", callbackEnterState}]; ok {
+	if fn, ok := f.callbacks[cKey{"", callbackEnterState}]; ok {
 		fn(e)
 	}
 }
@@ -452,10 +431,10 @@ func (f *FSM) enterStateCallbacks(e *Event) {
 // afterEventCallbacks calls the after_ callbacks, first the named then the
 // general version.
 func (f *FSM) afterEventCallbacks(e *Event) {
-	if fn, ok := f.callbacks[CallbackKey{e.Event, callbackAfterEvent}]; ok {
+	if fn, ok := f.callbacks[cKey{e.Event, callbackAfterEvent}]; ok {
 		fn(e)
 	}
-	if fn, ok := f.callbacks[CallbackKey{"", callbackAfterEvent}]; ok {
+	if fn, ok := f.callbacks[cKey{"", callbackAfterEvent}]; ok {
 		fn(e)
 	}
 }
@@ -468,8 +447,8 @@ const (
 	callbackAfterEvent
 )
 
-// CallbackKey is a struct key used for keeping the callbacks mapped to a target.
-type CallbackKey struct {
+// cKey is a struct key used for keeping the callbacks mapped to a target.
+type cKey struct {
 	// target is either the name of a state or an event depending on which
 	// callback type the key refers to. It can also be "" for a non-targeted
 	// callback like before_event.
@@ -479,8 +458,8 @@ type CallbackKey struct {
 	callbackType int
 }
 
-// EventKey is a struct key used for storing the transition map.
-type EventKey struct {
+// eKey is a struct key used for storing the transition map.
+type eKey struct {
 	// event is the name of the event that the keys refers to.
 	event string
 
