@@ -26,7 +26,7 @@ func writeHeaderLine(buf *bytes.Buffer) {
 	buf.WriteString("\n")
 }
 
-func writeTransitions(buf *bytes.Buffer, current string, sortedEKeys []EventKey, transitions map[EventKey]string) {
+func writeTransitions(buf *bytes.Buffer, current string, sortedEKeys []eKey, transitions map[eKey]string) {
 	// make sure the current state is at top
 	for _, k := range sortedEKeys {
 		if k.src == current {
