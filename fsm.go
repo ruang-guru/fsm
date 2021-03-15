@@ -44,10 +44,8 @@ type FSM struct {
 	// transitions maps events and source states to destination states.
 	transitions map[EventKey]string
 
-	// callbacks maps events and targers to callback functions.
-	callbacks map[CallbackKey]Callback
-
-	message map[EventKey]string
+	// callbacks maps events and targets to callback functions.
+	callbacks map[cKey]Callback
 
 	// transition is the internal transition functions used either directly
 	// or when Transition is called in an asynchronous state transition.
@@ -61,6 +59,11 @@ type FSM struct {
 	stateMu sync.RWMutex
 	// eventMu guards access to Event() and Transition().
 	eventMu sync.Mutex
+	// metadata can be used to store and load data that maybe used across events
+	// use methods SetMetadata() and Metadata() to store and load data
+	metadata map[string]interface{}
+
+	metadataMu sync.RWMutex
 }
 
 // EventDesc represents an event when initializing the FSM.
@@ -133,9 +136,9 @@ func NewFSM(initial string, events []*EventDesc, callbacks map[string]Callback) 
 	f := &FSM{
 		transitionerObj: &transitionerStruct{},
 		current:         initial,
-		transitions:     make(map[EventKey]string),
-		callbacks:       make(map[CallbackKey]Callback),
-		message:         make(map[EventKey]string),
+		transitions:     make(map[eKey]string),
+		callbacks:       make(map[cKey]Callback),
+		metadata:        make(map[string]interface{}),
 	}
 
 	// Build transition map and store sets of all events and states.
@@ -253,7 +256,7 @@ func (f *FSM) Can(event string) bool {
 	return ok && (f.transition == nil)
 }
 
-// AvailableTransitions returns a list of transitions avilable in the
+// AvailableTransitions returns a list of transitions available in the
 // current state.
 func (f *FSM) AvailableTransitions() []string {
 	f.stateMu.RLock()
@@ -271,6 +274,21 @@ func (f *FSM) AvailableTransitions() []string {
 // It is a convenience method to help code read nicely.
 func (f *FSM) Cannot(event string) bool {
 	return !f.Can(event)
+}
+
+// Metadata returns the value stored in metadata
+func (f *FSM) Metadata(key string) (interface{}, bool) {
+	f.metadataMu.RLock()
+	defer f.metadataMu.RUnlock()
+	dataElement, ok := f.metadata[key]
+	return dataElement, ok
+}
+
+// SetMetadata stores the dataValue in metadata indexing it with key
+func (f *FSM) SetMetadata(key string, dataValue interface{}) {
+	f.metadataMu.Lock()
+	defer f.metadataMu.Unlock()
+	f.metadata[key] = dataValue
 }
 
 // Event initiates a state transition with the named event.
