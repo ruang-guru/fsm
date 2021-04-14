@@ -342,7 +342,7 @@ func (f *FSM) Event(event string, args ...interface{}) (*Event, error) {
 	// Setup the transition, call it later.
 	f.transition = func() {
 		f.stateMu.Lock()
-		f.current = dst
+		f.current = e.Dst
 		f.stateMu.Unlock()
 
 		f.enterStateCallbacks(e)
